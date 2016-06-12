@@ -156,6 +156,7 @@ ERROCODE = '''
 def find_errno(no):
     x = []
     for line in ERROCODE.splitlines():
+        t = line.split()
         if no in line:
             x.append(t)
 
