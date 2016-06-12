@@ -11,6 +11,8 @@
 
 import sys
 import urllib
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 from workflow import Workflow
 from workflow import web
 
