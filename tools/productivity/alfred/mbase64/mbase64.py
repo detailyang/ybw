@@ -19,7 +19,7 @@ def main(wf):
     try:
         b64d = base64.b64decode(args[0])
     except TypeError:
-        b64d = "empty"
+        b64d = 'empty'
     wf.add_item(b64e, copytext=b64e)
     wf.add_item(b64d, copytext=b64d)
     wf.send_feedback()
