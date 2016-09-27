@@ -9,4 +9,4 @@
 'use strict';
 
 
-console.log('find me on https://detailyang.github.io');
+console.log("I'm at https://github.com/detailyang");
