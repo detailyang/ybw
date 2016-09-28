@@ -5,7 +5,7 @@
 * @Last Modified time: 2016-09-28 09:45:42
  */
 
-package main
+package ybw
 
 import "fmt"
 
