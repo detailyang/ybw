@@ -1,4 +1,4 @@
-[systemtap]: https://github.com/detailyang/systemtap-toolkit
+[systemtap-toolkit]: https://github.com/detailyang/systemtap-toolkit
 [gdb]: https://www.gnu.org/software/gdb
 [cscope]: http://cscope.sourceforge.net
 [ag]: https://github.com/ggreer/the_silver_searcher
@@ -12,8 +12,7 @@
 ./configure --enable-debug ....
 ```
 
-重新打包发布测试，按理论应该不会有问题，毕竟只是开启调试符号，并没有修改 codebase. 预发测试没问题，okay，生产上线部分流量看看。
-WTF PHP-FPM疯狂的段错误。
+重新打包发布测试，按理论应该不会有问题，毕竟只是开启调试符号，并没有修改 codebase. 预发测试没问题，okay，生产上线部分流量看看。WTF PHP-FPM疯狂的段错误。
 
 因缺思婷, 开调试符号会造成段错误，还是第一次见，哈哈。
 
