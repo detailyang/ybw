@@ -5,8 +5,9 @@
 [node.js]: https://nodejs.org
 [fastcgi]: https://en.wikipedia.org/wiki/FastCGI
 [changelog]: http://php.net/ChangeLog-5.php
+[php]: http://php.net/
 
-双11之前，为了使用我的工具集[systemtap-toolkit]进行生产环境的活体分析, 需要给 php-5.6.16 开启调试符号，开启方式比较简单,如下所示，
+双11之前，为了使用我的工具集[systemtap-toolkit]进行生产环境的活体分析, 需要给 [php]  开启调试符号，开启方式比较简单,如下所示，
 
 ```bash
 ./configure --enable-debug ....
