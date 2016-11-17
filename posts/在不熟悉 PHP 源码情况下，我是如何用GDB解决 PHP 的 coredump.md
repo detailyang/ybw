@@ -13,13 +13,14 @@
 ./configure --enable-debug ....
 ```
 
-重新打包发布测试，按理论应该不会有问题，毕竟只是开启调试符号，并没有修改 codebase. 预发测试没问题，okay，生产上线部分流量看看。WTF PHP-FPM疯狂的段错误。
+重新打包发布测试，按理论应该不会有问题，毕竟只是开启调试符号，并没有修改 codebase。 预发测试没问题，okay，生产上线部分流量看看。WTF PHP-FPM疯狂的段错误。
 
-因缺思婷, 开调试符号会造成段错误，还是第一次见，哈哈。
+因缺思婷, 开调试符号会造成段错误，还是第一次见。这个现象成功的吸引了我的注意力。
 
-没办法了，扔出离线调试工具[gdb]查查原因。
+扔出调试工具[gdb]查查原因。
 
-先载入coredump
+先载入coredump恢复现场。
+
 ```bash
 # gdb -c /tmp/core-500-php-fpm-29093-1478780406 $(php-fpm)
 Excess command line arguments ignored. (/opt/isys/sbin/php-fpm ...)
@@ -95,7 +96,7 @@ Program terminated with signal 11, Segmentation fault.
 46                      FREE_HASHTABLE(zvalue->value.ht);
 ```
 
-`CHECK_ZVAL_STRING_REL(zvalue);` 好吧，翻出 php-src 的源码查查 `CHECK_ZVAL_STRING_REL` 的定义.
+`CHECK_ZVAL_STRING_REL(zvalue);` 看起来是个宏，翻出 php-src 的源码查查 `CHECK_ZVAL_STRING_REL` 的定义.
 
 ```bash
 git clone https://github.com/php/php-src.git
@@ -153,7 +154,7 @@ SUM:                                  2580         135319         176715        
 ---------------------------------------------------------------------------------------
 ```
 
-看起来很大，估计用[ag]搜会搜出一坨:(。OK，让我们拿 [cscope] 来查比较精确。
+看起来很大，估计用[ag]搜会搜出一坨:(。OK，拿 [cscope] 来查比较精确。
 ```bash
 cscope -Rbq
 cscope -dq
@@ -178,7 +179,7 @@ Find files #including this file:
 Find assignments to this symbol:
 ```
 
-看看具体的定义
+看看具体的`CHECK_ZVAL_STRING_REL`定义
 
 ```bash
 539 #define CHECK_ZVAL_STRING_REL(z) \
@@ -193,8 +194,7 @@ Find assignments to this symbol:
 445 #define Z_STRLEN(zval)     (zval).value.str.len
 ```
 
-所以最后的表达式就是 `(*zvalue).value.str.val[(*zvalue).value.str.len]`
-OK，看看这几个变量的值
+所以最后的表达式就是 `(*zvalue).value.str.val[(*zvalue).value.str.len]`，再看看这几个变量的值。
 
 ```bash
 (gdb) p (*zvalue).value.str.val
@@ -206,7 +206,7 @@ $4 = 0
 显然，程序访问了非法的内存地址0x00.(有兴趣的自己查看程序布局cat /proc/xx/maps)。
 造成段错误的代码找到了，现在得想办法找出复现条件，由于是在发生段错误三天之后才开始调试的，之前的现场只有一份coredump。
 
-早先用 [Node.js] 实现过 [fastcgi] 协议，代码里应该有保存请求信息的地方, 仔细看调用栈，看起来入口比较像。
+早先用 [Node.js] 实现过 [fastcgi] 协议，猜测代码里应该有保存请求信息的对象, 仔细看调用栈，看起来入口比较像。
 
 ```bash
 (gdb) frame 11
@@ -306,7 +306,7 @@ $2 = {nTableSize = 64, nTableMask = 63, nNumOfElements = 0, nNextFreeElement = 0
 185 ›   HashTable symbol_table;››   /* main symbol table */
 ```
 
-跟之前说的一样，是个 hash table。既然是 hashtable，应该有记录 hash 对应的key值, 看看 HashTable 的定义
+跟之前说的一样，是个  `HashTable`。既然是 `HashTable`，应该有记录 hash 对应的 key 值, 看看 `HashTable` 的定义
 
 ```c
  67 typedef struct _hashtable {
@@ -328,7 +328,7 @@ $2 = {nTableSize = 64, nTableMask = 63, nNumOfElements = 0, nNextFreeElement = 0
  83 } HashTable;
 ```
 
-看pListHead和pListTail，看样子所有的变量都在这个链表连起来的桶，看看Bucket的定义
+看 `pListHead` 和 `pListTail`，看样子所有的变量都在这个链表连起来的桶，看看`Bucket`的定义
 
 ```c
  55 typedef struct bucket {
@@ -344,7 +344,7 @@ $2 = {nTableSize = 64, nTableMask = 63, nNumOfElements = 0, nNextFreeElement = 0
  65 } Bucket;
 ```
 
-arKey 应该就是我们要找的 key。OK，调用栈上应该有具体的某个Bucket，往里继续找着:)
+`arKey` 应该就是我们要找的 key。OK，调用栈上应该有具体的某个Bucket，往里继续找着:)
 
 ```bash
 (gdb) frame 7
@@ -365,7 +365,7 @@ arKey 应该就是我们要找的 key。OK，调用栈上应该有具体的某�
 617         pefree(ht->arBuckets, ht->persistent);
 ```
 
-看代码是在遍历ht->pListTail的某一个值导致的，继续往里看看段错误时的ht->pListTail值是多少
+看代码是在遍历`ht->pListTail`的某一个值导致的，继续往里看看段错误时的ht->pListTail值是多少
 
 ```bash
 #6  0x0000000000a82ca8 in zend_hash_bucket_delete (ht=0x142c328, p=0x7f676a8a9698)
@@ -426,7 +426,7 @@ Find assignments to this symbol:
 ```
 
 注意第73行data和length，跟我们之前 `(*zvalue).value.str.val[(*zvalue).value.str.len]` 的相对应，
-当我们发起一个 POST Request Body为空的请求时，data将为空，（这里可以直接调试php解释器验证），okay真正的根源找到了看看怎么修复。
+当我们发起一个 POST Request Body为空的请求时，data将为空，（这里可以直接调试php解释器验证），ok, 真正的根源找到了看看怎么修复。
 直觉告诉我 `(*zvalue).value.str.val[(*zvalue).value.str.len]`，之前应该加个判断，不过在不熟悉源码的情况下，还是改HTTP_RAW_POST_DATA比较安全：）
 当 data 为 NULL 并且 length 为 0 时，只要给 data 赋予一个合法的地址，并保证Z_STRVAL_P(z)[ Z_STRLEN_P(z) ] 为 '\0' 即可。
 试试搜索 empty，能不能找到相应的 api:)
