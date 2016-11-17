@@ -441,8 +441,8 @@ Find assignments to this symbol:
 ```
 
 注意第73行`data`和`length`，跟我们之前 `(*zvalue).value.str.val[(*zvalue).value.str.len]` 的相对应，
-当我们发起一个 POST Request Body为空的请求时，data将为空，（这里可以直接调试php解释器验证），ok, 真正的根源找到了看看怎么修复。
-直觉告诉我 `(*zvalue).value.str.val[(*zvalue).value.str.len]`，之前应该加个判断，不过在不熟悉源码的情况下，还是改HTTP_RAW_POST_DATA比较安全：）
+当我们发起一个 POST Request Body为空的请求时，data将为空,(这里可以直接调试[php]解释器验证)，ok, 真正的根源找到了看看怎么修复。
+直觉告诉我 `(*zvalue).value.str.val[(*zvalue).value.str.len]`，之前应该加个判断，不过在不熟悉源码的情况下，还是改 HTTP_RAW_POST_DATA 比较安全：）
 当 data 为 NULL 并且 length 为 0 时，只要给 data 赋予一个合法的地址，并保证Z_STRVAL_P(z)[ Z_STRLEN_P(z) ] 为 '\0' 即可，最粗暴的方式直接用`data = ""；`试试。
 
 重新编译打包依然段错误，不过这次段错误的原因不一样。
@@ -455,7 +455,7 @@ Find assignments to this symbol:
 1384		if (p->info._size != ZEND_MM_NEXT_BLOCK(p)->info._prev) {
 ```
 
-看起来不是堆上的地址造成的段错误，PHP应该有一套自己的内存管理机制。没办法了，只能找找对应的 API，按经验试试搜索 empty。
+看起来不是堆上的地址造成的段错误，[PHP] 应该有一套自己的内存管理机制。没办法了，只能找找对应的 API，按经验试试搜索 empty 和 str。
 
 ```bash
 Text string: empty
@@ -492,4 +492,4 @@ if (data == NULL && length == 0) {
 #总结
 
 如果之前熟悉 [php] 源码，拿到调用栈直接打印 hash 的 key，估计十几分钟内就完事, 最后不得不花了几个小时才搞定。
-一个悲伤的事是当我准备顺手提交 PR 给 PHP 官方时，搜了下 [Changelog]， 发现早有人提交并修复了这个问题, 如果你的情况比较紧急，建议还是看看新版本是否修复吧，至于我只是为了好玩哈哈:(
+一个悲伤的事是当我准备顺手提交 PR 给 PHP 官方时，搜了下 [Changelog]， 发现早有人提交并修复了这个问题, 如果你的情况比较紧急，建议还是看看新版本是否修复吧，至于我只是为了好玩哈哈。
