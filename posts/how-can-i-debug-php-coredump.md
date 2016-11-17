@@ -7,9 +7,10 @@
 [changelog]: http://php.net/ChangeLog-5.php
 [php]: http://php.net/
 [cloc]: https://github.com/AlDanial/cloc
+[coredump]: https://en.wikipedia.org/wiki/Core_dump
 
 #前言
-这篇文章将用实战来表明如何用 [gdb] 从 coredump 恢复现场并游走在程序的堆栈之间。
+这篇文章将用实战来表明如何用 [gdb] 从 [coredump] 恢复现场并游走在程序的堆栈之间。
 
 #问题
 双11之前，为了使用我的工具集[systemtap-toolkit]进行生产环境的活体分析, 需要给 [php]  开启调试符号，开启方式比较简单,如下所示，
@@ -18,15 +19,15 @@
 ./configure --enable-debug ....
 ```
 
-重新打包发布测试，按理论应该不会有问题，毕竟只是开启调试符号，并没有修改 codebase。 预发测试没问题，ok，生产上线部分流量看看。WTF `PHP-FPM` 经常的报段错误。
+重新打包发布测试，按理论应该不会有问题，毕竟只是开启调试符号，并没有修改 codebase。 预发测试没问题，ok，生产上线部分流量看看。WTF `PHP-FPM` 经常的报 [coredump] 。
 
-因缺思婷, 开调试符号会造成段错误，还是第一次见。这个现象成功地吸引了我的注意力。
+因缺思婷, 开调试符号会造成 [coredump] ，还是第一次见。这个现象成功地吸引了我的注意力。
 
-#载入coredump
+#载入coredump 
 
-扔出调试工具[gdb]查查原因。
+扔出调试工具 [gdb] 查查原因。
 
-先载入coredump恢复现场。
+先载入 [coredump] 恢复现场。
 
 ```bash
 # gdb -c /tmp/core-500-php-fpm-29093-1478780406 $(php-fpm)
@@ -80,7 +81,7 @@ Program terminated with signal 11, Segmentation fault.
     at /usr/src/debug/php-5.6.16/sapi/fpm/fpm/fpm_main.c:1992
 ```
 
-看看产生段错误的代码, 注意第36行:)
+看看产生 [coredump] 的代码, 注意第36行:)
 ```bash
 (gdb) list _zval_dtor_func
 27  #include "zend_constants.h"
@@ -214,7 +215,7 @@ $4 = 0
 ```
 
 显然，程序访问了非法的内存地址0x00.(有兴趣的自己查看程序布局cat /proc/xx/maps)。
-造成段错误的代码找到了，现在得想办法找出复现条件，由于是在发生段错误三天之后才开始调试的，之前的现场只有一份coredump。
+造成 [coredump] 的代码找到了，现在得想办法找出复现条件，由于是在发生 [coredump] 三天之后才开始调试的，之前的现场只有一份 [coredump] 。
 
 #复现现场
 曾经用 [Node.js] 实现过 [fastcgi] 协议，我猜测代码里应该有保存请求信息的对象, 仔细看调用栈，看起来入口比较像。
@@ -268,9 +269,9 @@ Good，试试复现构造这个请求。
 curl -X POST -H "Cookie: a=1;b=2" -H "Content-Length: 0" http://127.0.0.1/yyy?qqqq=123
 ```
 
-果然，POST 一个 request body 为空的请求比较少见，竟然造成 coredump:(
+果然，POST 一个 request body 为空的请求比较少见，竟然造成  [coredump] :(
 
-到目前为止，复现方法和 coredump 原因都已经找到，再继续挖掘调用栈看看，从外到里一层层看，在`frame 8`发现新线索:)。
+到目前为止，复现方法和  [coredump]  原因都已经找到，再继续挖掘调用栈看看，从外到里一层层看，在`frame 8`发现新线索:)。
 
 #新线索
 
@@ -378,7 +379,7 @@ $2 = {nTableSize = 64, nTableMask = 63, nNumOfElements = 0, nNextFreeElement = 0
 617         pefree(ht->arBuckets, ht->persistent);
 ```
 
-看代码是在遍历 `ht->pListTail `的某一个值导致的，继续往里看看发生段错误时的 `ht->pListTail`值是多少
+看代码是在遍历 `ht->pListTail `的某一个值导致的，继续往里看看发生 [coredump] 时的 `ht->pListTail`值是多少
 
 ```bash
 #6  0x0000000000a82ca8 in zend_hash_bucket_delete (ht=0x142c328, p=0x7f676a8a9698)
@@ -396,7 +397,7 @@ $5 = {h = 12508711195225833452, nKeyLength = 19, pData = 0x7f676a8a96b0,
   arKey = 0x7f676a8a96e0 "HTTP_RAW_POST_DATA"}
 ```
 
-奈斯，看样子是在销毁 "HTTP_RAW_POST_DATA" 变量导致的段错误，看看 HTTP_RAW_POST_DATA 那里定义:)
+奈斯，看样子是在销毁 "HTTP_RAW_POST_DATA" 变量导致的 [coredump] ，看看 HTTP_RAW_POST_DATA 那里定义:)
 ```bash
 Text string: HTTP_RAW_POST_DATA
 
@@ -445,7 +446,7 @@ Find assignments to this symbol:
 直觉告诉我 `(*zvalue).value.str.val[(*zvalue).value.str.len]`，之前应该加个判断，不过在不熟悉源码的情况下，还是改 HTTP_RAW_POST_DATA 比较安全：）
 当 data 为 NULL 并且 length 为 0 时，只要给 data 赋予一个合法的地址，并保证Z_STRVAL_P(z)[ Z_STRLEN_P(z) ] 为 '\0' 即可，最粗暴的方式直接用`data = ""；`试试。
 
-重新编译打包依然段错误，不过这次段错误的原因不一样。
+重新编译打包依然 [coredump] ，不过这次 [coredump] 的原因不一样。
 
 ```bash
 #0  0x0000000000a34a18 in zend_mm_check_ptr (heap=0x30bf2d0, ptr=0x107db83, silent=1,
@@ -455,7 +456,7 @@ Find assignments to this symbol:
 1384		if (p->info._size != ZEND_MM_NEXT_BLOCK(p)->info._prev) {
 ```
 
-看起来不是堆上的地址造成的段错误，[PHP] 应该有一套自己的内存管理机制。没办法了，只能找找对应的 API，按经验试试搜索 empty 和 str。
+看起来不是堆上的地址造成的 [coredump] ，[PHP] 应该有一套自己的内存管理机制。没办法了，只能找找对应的 API，按经验试试搜索 empty 和 str。
 
 ```bash
 Text string: empty
